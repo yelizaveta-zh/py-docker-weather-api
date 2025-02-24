@@ -1,29 +1,53 @@
 import os
 import requests
+import logging
 
 
-API_KEY = os.getenv("API_KEY")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+API_URL = "http://api.weatherapi.com/v1/current.json"
 CITY = os.getenv("CITY", "Paris")
-BASE_URL = "http://api.weatherapi.com/v1/current.json"
 
 
 def get_weather() -> None:
-    params = {
-        "key": API_KEY,
-        "q": CITY,
-        "aqi": "no"
-    }
-    response = requests.get(BASE_URL, params=params)
+    api_key = os.getenv("API_KEY")
 
-    if response.status_code == 200:
-        data = response.json()
-        temp_c = data["current"]["temp_c"]
-        condition = data["current"]["condition"]["text"]
-        print(f"Weather in {CITY}: {temp_c}°C, {condition}")
-    else:
-        print(f"Failed to get weather data: "
-              f"{response.status_code}, "
-              f"{response.text}")
+    if not api_key:
+        logging.error("API_KEY environment variable is not set")
+        raise ValueError("API_KEY environment variable is required")
+
+    params = {
+        "key": api_key,
+        "q": CITY,
+        "aqi": "no",
+    }
+
+    try:
+        response = requests.get(API_URL, params=params, timeout=5)
+        response.raise_for_status()
+
+        weather_data = response.json()
+        current = weather_data["current"]
+
+        print(f"Current weather in {CITY}:")
+        print(f"Temperature: {current['temp_c']}°C")
+        print(f"Condition: {current['condition']['text']}")
+
+    except requests.exceptions.Timeout:
+        logging.error("Request timed out. The server may be down or too slow.")
+    except requests.exceptions.ConnectionError:
+        logging.error("Network error. Please check your internet connection.")
+    except requests.exceptions.HTTPError as http_err:
+        logging.error(f"HTTP error occurred: {http_err}")
+    except requests.exceptions.RequestException as req_err:
+        logging.error(
+            f"An error occurred while fetching weather data: {req_err}"
+        )
+    except KeyError:
+        logging.error("Unexpected response structure from Weather API.")
 
 
 if __name__ == "__main__":
